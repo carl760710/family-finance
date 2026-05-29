@@ -3081,6 +3081,10 @@
       _fbAuth = firebase.auth(_fbApp);
       _fbDb   = firebase.database(_fbApp);
       _fbAuth.onAuthStateChanged(onAuthChange);
+      // 處理手機跳轉登入的回傳結果
+      _fbAuth.getRedirectResult().catch(e => {
+        if (e.code && e.code !== "auth/no-such-provider") console.warn("Redirect result:", e.message);
+      });
     } catch(e) {
       console.error("Firebase init error:", e);
     }
@@ -3148,8 +3152,16 @@
   // ── Google 登入 / 登出 ───────────────────────────────────
   async function googleSignIn() {
     const provider = new firebase.auth.GoogleAuthProvider();
+    const isMobile   = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches
+                      || !!window.navigator.standalone;
     try {
-      await _fbAuth.signInWithPopup(provider);
+      if (isMobile || isStandalone) {
+        // 手機 / PWA：用跳轉登入，避免彈出視窗被封鎖
+        await _fbAuth.signInWithRedirect(provider);
+      } else {
+        await _fbAuth.signInWithPopup(provider);
+      }
     } catch(e) {
       if (e.code !== "auth/popup-closed-by-user") alert("登入失敗：" + e.message);
     }
